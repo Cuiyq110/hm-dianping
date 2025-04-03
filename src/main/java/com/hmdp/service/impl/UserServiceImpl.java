@@ -41,7 +41,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
 
     @Override
-    public Result sedCode(String phone, HttpSession session) {
+    public Result sendCode(String phone, HttpSession session) {
         //1. 校验手机号
         if (RegexUtils.isPhoneInvalid(phone)) {
             //2.如果不符合，返回错误信息
@@ -50,7 +50,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
         //3. 符合，生成验证码
         String code = RandomUtil.randomNumbers(6);
-        //4. 保存验证码到redis
+        //4. 保存验证码到redis，并设置为五分钟
 //        session.setAttribute("code",code);
         stringRedisTemplate.opsForValue().set(LOGIN_CODE_KEY + phone, code,LOGIN_CODE_TTL, TimeUnit.MINUTES);
         //5. 发送验证码
