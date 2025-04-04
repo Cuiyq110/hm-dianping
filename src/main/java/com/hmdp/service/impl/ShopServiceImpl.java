@@ -10,6 +10,7 @@ import com.hmdp.service.IShopService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.concurrent.TimeUnit;
@@ -62,5 +63,24 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         str.opsForValue().set(key,jsonStr,CACHE_SHOP_TTL, TimeUnit.MINUTES);
 //        返回
         return Result.ok(shop);
+    }
+
+    /**
+     * 修改商户信息
+     * @param shop
+     * @return
+     */
+    @Override
+    @Transactional
+    public Result update(Shop shop) {
+        Long id = shop.getId();
+        if (id == null) {
+            return Result.fail("商户id为空");
+        }
+//        写入数据库
+        updateById(shop);
+//        2.删除缓存
+        str.delete(CACHE_SHOP_KEY + id);
+        return Result.ok();
     }
 }
