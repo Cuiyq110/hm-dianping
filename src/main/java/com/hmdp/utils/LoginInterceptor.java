@@ -3,19 +3,17 @@ package com.hmdp.utils;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
 import com.hmdp.dto.UserDTO;
-import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.hmdp.utils.RedisConstants.LOGIN_CODE_KEY;
+import static com.hmdp.utils.RedisConstants.LOGIN_USER_KEY;
 
 public class LoginInterceptor implements HandlerInterceptor {
 
@@ -30,11 +28,12 @@ public class LoginInterceptor implements HandlerInterceptor {
         //1. 获取token
         String token = request.getHeader("authorization");
         if (StrUtil.isBlank(token)) {
-            response.setStatus(401);
-            return false;
+           return false;
         }
-        //2.获取token中的用户
-        Map<Object, Object> userMap = stringRedisTemplate.opsForHash().entries(LOGIN_CODE_KEY + token);
+        String tokenkey=  LOGIN_USER_KEY + token;
+
+        //2.获取token中的用户 --map
+        Map<Object, Object> userMap = stringRedisTemplate.opsForHash().entries(tokenkey);
 
         //3. 判断用户是否存在
         if (userMap.isEmpty()){
