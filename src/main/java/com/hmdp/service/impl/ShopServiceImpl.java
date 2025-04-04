@@ -58,8 +58,9 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 //        3.1转入json存入
         String jsonStr = JSONUtil.toJsonStr(shop);
 //        4.再写入到redis
-//        TODO 增加过期时间
+
         str.opsForValue().set(key,jsonStr,CACHE_SHOP_TTL, TimeUnit.MINUTES);
+//        返回
         return Result.ok(shop);
     }
 }
