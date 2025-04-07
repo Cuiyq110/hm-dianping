@@ -2,23 +2,29 @@ package com.hmdp.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
+import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.Voucher;
+import com.hmdp.entity.VoucherOrder;
 import com.hmdp.mapper.VoucherMapper;
 import com.hmdp.service.ISeckillVoucherService;
+import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.service.IVoucherService;
+import com.hmdp.utils.RedisIdWorker;
+import com.hmdp.utils.UserHolder;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static com.hmdp.utils.RedisConstants.SECKILL_STOCK_KEY;
 
 /**
  * <p>
- *  服务实现类
+ * 服务实现类
  * </p>
  *
  * @author cuiyq
@@ -31,6 +37,10 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
     private ISeckillVoucherService seckillVoucherService;
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private RedisIdWorker redisIdWorker;
+    @Resource
+    private IVoucherOrderService voucherOrderService;
 
     @Override
     public Result queryVoucherOfShop(Long shopId) {
@@ -54,5 +64,62 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
         seckillVoucherService.save(seckillVoucher);
         // 保存秒杀库存到Redis中
         stringRedisTemplate.opsForValue().set(SECKILL_STOCK_KEY + voucher.getId(), voucher.getStock().toString());
+    }
+
+
+    /**
+     * 实现优惠券秒杀下单功能
+     *
+     * @param voucherId
+     * @return
+     */
+    @Transactional
+    @Override
+    public Result seckillVoucher(Long voucherId) {
+
+//        1.根据id查询秒杀数据库
+        SeckillVoucher voucher = seckillVoucherService.getById(voucherId);
+        if (voucher == null) {
+            return Result.fail("秒杀商品不存在");
+        }
+//        2.判断秒杀是否开始
+//        2.1没有开始，直接返回异常
+        if (voucher.getBeginTime().isAfter(LocalDateTime.now())) {
+            return Result.fail("秒杀尚未开始");
+        }
+//        2.2 已经结束，直接返回异常
+        if (voucher.getEndTime().isBefore(LocalDateTime.now())) {
+            return Result.fail("秒杀已经结束");
+        }
+//        3.判断库存是否充足
+        if (voucher.getStock() < 1) {
+            //3.1 如果库存不足，直接返回异常
+            return Result.fail("库存不足");
+        }
+//        4.减少库存
+        boolean sucess = seckillVoucherService.update()
+                .setSql("stock = stock - 1")
+                .eq("voucher_id", voucherId).update();
+
+        if (!sucess) {
+            return Result.fail("库存不足");
+        }
+//        5.创建订单
+        VoucherOrder voucherOrder = new VoucherOrder();
+//        优惠券id
+        voucherOrder.setVoucherId(voucherId);
+//         用户id
+        Long id = UserHolder.getUser().getId();
+        voucherOrder.setUserId(id);
+//       订单id 全局唯一id
+        long orderId= redisIdWorker.nextId("order");
+        voucherOrder.setId(orderId);
+
+        boolean save = voucherOrderService.save(voucherOrder);
+        if (!save) {
+            return Result.fail("下单失败");
+        }
+//        6.返回订单id
+        return Result.ok(orderId);
     }
 }
