@@ -9,6 +9,8 @@ import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
 import com.hmdp.mapper.ShopMapper;
 import com.hmdp.service.IShopService;
+import com.hmdp.utils.CacheClient;
+import com.hmdp.utils.CacheClient1;
 import com.hmdp.utils.RedisData;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -40,6 +42,9 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     @Resource
     private StringRedisTemplate str;
 
+    @Resource
+    private CacheClient1 cacheClient1;
+
     /**
      * 添加商户缓存 互斥锁解决缓存击穿问题
      *
@@ -50,13 +55,15 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     public Result queryById(Long id) {
 //      redis写入空值解决缓存击穿
 //        Shop shop = queryWithPassThrow(id);
-
 //      互斥锁解决缓存击穿
 //        Shop shop = queryWithMutex(id);
 
 //       逻辑过期解决缓存击穿问题
-        Shop shop = queryWithLogicalExpire(id);
+//        Shop shop = queryWithLogicalExpire(id);
 
+
+        //      redis写入空值解决缓存击穿
+        Shop shop = cacheClient1.queryWithPassThrough(CACHE_SHOP_KEY, id, Shop.class, this::getById, 30L, TimeUnit.MINUTES);
         if (shop == null) {
            return Result.fail("商户不存在");
         }
