@@ -99,6 +99,7 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
 //        4.减少库存
         boolean sucess = seckillVoucherService.update()
                 .setSql("stock = stock - 1")
+                .gt("stock", 0)
                 .eq("voucher_id", voucherId).update();
 
         if (!sucess) {
