@@ -82,6 +82,7 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
         if (voucher == null) {
             return Result.fail("秒杀商品不存在");
         }
+
 //        2.判断秒杀是否开始
 //        2.1没有开始，直接返回异常
         if (voucher.getBeginTime().isAfter(LocalDateTime.now())) {
@@ -96,6 +97,13 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
             //3.1 如果库存不足，直接返回异常
             return Result.fail("库存不足");
         }
+//        3.2判断订单是否存在 即重复购买
+        Long id1 = UserHolder.getUser().getId();
+//        3.3存在1个返回异常结果
+        if (id1 > 0) {
+            return Result.fail("不能重复下单");
+        }
+
 //        4.减少库存
         boolean sucess = seckillVoucherService.update()
                 .setSql("stock = stock - 1")
