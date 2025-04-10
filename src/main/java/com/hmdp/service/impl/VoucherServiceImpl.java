@@ -6,6 +6,7 @@ import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.Voucher;
 import com.hmdp.entity.VoucherOrder;
+import com.hmdp.mapper.IVoucherOrderMapper;
 import com.hmdp.mapper.VoucherMapper;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
@@ -41,6 +42,7 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
     private RedisIdWorker redisIdWorker;
     @Resource
     private IVoucherOrderService voucherOrderService;
+
 
     @Override
     public Result queryVoucherOfShop(Long shopId) {
@@ -97,11 +99,14 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
             //3.1 如果库存不足，直接返回异常
             return Result.fail("库存不足");
         }
-//        3.2判断订单是否存在 即重复购买
-        Long id1 = UserHolder.getUser().getId();
-//        3.3存在1个返回异常结果
-        if (id1 > 0) {
-            return Result.fail("不能重复下单");
+        // 5.一人一单逻辑
+        // 5.1.用户id
+        Long userId = UserHolder.getUser().getId();
+        int count = voucherOrderService.query().eq("user_id", userId).eq("voucher_id", voucherId).count();
+        // 5.2.判断是否存在
+        if (count > 0) {
+            // 用户已经购买过了
+            return Result.fail("用户已经购买过一次！");
         }
 
 //        4.减少库存

@@ -1,8 +1,8 @@
 package com.hmdp.mapper;
 
 import com.hmdp.entity.VoucherOrder;
-import generator.domain.TbVoucherOrder;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.Mapper;
 
 /**
 * @author cuiyq
@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 * @createDate 2025-04-07 22:22:16
 * @Entity generator.domain.TbVoucherOrder
 */
+@Mapper
 public interface IVoucherOrderMapper extends BaseMapper<VoucherOrder> {
 
 }
