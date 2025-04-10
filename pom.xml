@@ -21,7 +21,6 @@
         <dependency>
             <groupId>org.aspectj</groupId>
             <artifactId>aspectjweaver</artifactId>
-            <version>1.9.7</version> <!-- 根据实际需求调整版本 -->
         </dependency>
 
 

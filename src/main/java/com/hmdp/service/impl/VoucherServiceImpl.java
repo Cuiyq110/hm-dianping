@@ -75,7 +75,7 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
      * @param voucherId
      * @return
      */
-    @Transactional
+
     @Override
     public Result seckillVoucher(Long voucherId) {
 
