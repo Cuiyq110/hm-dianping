@@ -2,17 +2,17 @@ package com.hmdp.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
-import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.Voucher;
 import com.hmdp.entity.VoucherOrder;
-import com.hmdp.mapper.IVoucherOrderMapper;
 import com.hmdp.mapper.VoucherMapper;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.service.IVoucherService;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
+import org.springframework.aop.framework.AopContext;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,7 +41,7 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
     @Resource
     private RedisIdWorker redisIdWorker;
     @Resource
-    private IVoucherOrderService voucherOrderService;
+    private IVoucherOrderServiceImpl voucherOrderService;
 
 
     @Override
@@ -99,6 +99,17 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
             //3.1 如果库存不足，直接返回异常
             return Result.fail("库存不足");
         }
+        Long userId = UserHolder.getUser().getId();
+        synchronized (userId.toString().intern()) {
+
+            VoucherServiceImpl proxy = (VoucherServiceImpl) AopContext.currentProxy();
+            return proxy.createVoucherOrder(voucherId);
+        }
+
+    }
+
+    @Transactional
+    public Result createVoucherOrder(Long voucherId) {
         // 5.一人一单逻辑
         // 5.1.用户id
         Long userId = UserHolder.getUser().getId();
@@ -126,14 +137,13 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
         Long id = UserHolder.getUser().getId();
         voucherOrder.setUserId(id);
 //       订单id 全局唯一id
-        long orderId= redisIdWorker.nextId("order");
+        long orderId = redisIdWorker.nextId("order");
         voucherOrder.setId(orderId);
 
         boolean save = voucherOrderService.save(voucherOrder);
         if (!save) {
             return Result.fail("下单失败");
         }
-//        6.返回订单id
         return Result.ok(orderId);
     }
 }

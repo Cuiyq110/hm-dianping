@@ -1,6 +1,7 @@
 package com.hmdp.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hmdp.dto.Result;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.mapper.IVoucherOrderMapper;
@@ -15,6 +16,10 @@ import org.springframework.stereotype.Service;
 public class IVoucherOrderServiceImpl extends ServiceImpl<IVoucherOrderMapper, VoucherOrder>
     implements IVoucherOrderService {
 
+    @Override
+    public Result createVoucherOrder(Long voucherId) {
+        return null;
+    }
 }
 
 
