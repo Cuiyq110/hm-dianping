@@ -7,13 +7,12 @@ import com.hmdp.entity.Voucher;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.mapper.VoucherMapper;
 import com.hmdp.service.ISeckillVoucherService;
-import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.service.IVoucherService;
 import com.hmdp.utils.RedisIdWorker;
-import com.hmdp.utils.SimpleRedisLock;
 import com.hmdp.utils.UserHolder;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +42,9 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
     private RedisIdWorker redisIdWorker;
     @Resource
     private IVoucherOrderServiceImpl voucherOrderService;
+    @Resource
+    private RedissonClient redissonClient;
+
 
 
     @Override
@@ -103,9 +105,11 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
         Long userId = UserHolder.getUser().getId();
 //        4.使用简易自定义分布式锁
         //4.1创建锁对象(新增代码)
-        SimpleRedisLock lock = new SimpleRedisLock("order:" + userId, stringRedisTemplate);
+//        SimpleRedisLock lock = new SimpleRedisLock("order:" + userId, stringRedisTemplate);
+        RLock lock = redissonClient.getLock("order:" + userId);
+
         //4.2获取锁对象
-        boolean b = lock.tryLock(2000);
+        boolean b = lock.tryLock();
 //      4.3如果获取不到证明已经购买了
         if (!b) {
             return Result.fail("不允许重复下单");
