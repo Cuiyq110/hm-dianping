@@ -50,7 +50,8 @@ public class Blog implements Serializable {
      */
     @TableField(exist = false)
     private String name;
-
+    @TableField(exist = false)
+    private Boolean isLike;
     /**
      * 标题
      */
