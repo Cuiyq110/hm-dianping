@@ -15,6 +15,8 @@ import com.hmdp.entity.Blog;
 public interface IBlogService extends IService<Blog> {
 
 
+    Result queryBlogLikes(Long id);
+
     /**
      * 查询笔记
      * @param current

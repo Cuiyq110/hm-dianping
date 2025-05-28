@@ -43,6 +43,17 @@ public class BlogController {
         return Result.ok(blog.getId());
     }
 
+    /**
+     * 点赞排行榜
+     * @param id
+     * @return
+     */
+    @GetMapping("/likes/{id}")
+        public Result queryBlogLikes(@PathVariable("id") Long id) {
+
+            return blogService.queryBlogLikes(id);
+        }
+
     @PutMapping("/like/{id}")
     public Result likeBlog(@PathVariable("id") Long id) {
         // 修改点赞数量
