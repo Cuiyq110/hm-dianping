@@ -23,6 +23,12 @@ public class FollowController {
     private IFollowService followService;
 
 
+    @GetMapping("/common/{id}")
+    public Result followCommons(@PathVariable Long id) {
+       return followService.followCommons(id);
+    }
+
+
     /**
      * 关注取关
      * @param followUserId
