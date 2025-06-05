@@ -2,14 +2,17 @@ package com.hmdp.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.extension.conditions.query.QueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Blog;
+import com.hmdp.entity.Follow;
 import com.hmdp.entity.User;
 import com.hmdp.mapper.BlogMapper;
 import com.hmdp.service.IBlogService;
+import com.hmdp.service.IFollowService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.SystemConstants;
 import com.hmdp.utils.UserHolder;
@@ -22,8 +25,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static com.hmdp.utils.RedisConstants.BLOG_LIKED_KEY;
-import static com.hmdp.utils.RedisConstants.KEY_PRE_FIX;
+import static com.hmdp.utils.RedisConstants.*;
 
 /**
  * <p>
@@ -42,14 +44,18 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
+    @Resource
+    private IFollowService followService;
+
     /**
      * 点赞排行榜
+     *
      * @param id
      * @return
      */
     @Override
     public Result queryBlogLikes(Long id) {
-        String key = KEY_PRE_FIX +  BLOG_LIKED_KEY + id;
+        String key = KEY_PRE_FIX + BLOG_LIKED_KEY + id;
         // 1.查询top5的点赞用户 zrange key 0 4
         Set<String> top5 = stringRedisTemplate.opsForZSet().range(key, 0, 4);
         if (top5 == null || top5.isEmpty()) {
@@ -67,7 +73,6 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         // 4.返回
         return Result.ok(userDTOS);
     }
-
 
 
     public Result queryHotBlog(Integer current) {
@@ -94,6 +99,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     /**
      * 根据id查博客
+     *
      * @param id
      * @return
      */
@@ -110,6 +116,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         isBlogLiked(blog);
         return Result.ok(blog);
     }
+
     private void isBlogLiked(Blog blog) {
         // 1.获取登录用户
         UserDTO user = UserHolder.getUser();
@@ -119,7 +126,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         }
         Long userId = user.getId();
         // 2.判断当前登录用户是否已经点赞
-        String key = KEY_PRE_FIX +  BLOG_LIKED_KEY + blog.getId();
+        String key = KEY_PRE_FIX + BLOG_LIKED_KEY + blog.getId();
         Double score = stringRedisTemplate.opsForZSet().score(key, userId.toString());
         blog.setIsLike(score != null);
     }
@@ -129,7 +136,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         // 1.获取登录用户
         Long userId = UserHolder.getUser().getId();
         // 2.判断当前登录用户是否已经点赞
-        String key = KEY_PRE_FIX +  BLOG_LIKED_KEY + id;
+        String key = KEY_PRE_FIX + BLOG_LIKED_KEY + id;
         Double score = stringRedisTemplate.opsForZSet().score(key, userId.toString());
         if (score == null) {
             // 3.如果未点赞，可以点赞
@@ -149,5 +156,33 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
             }
         }
         return Result.ok();
+    }
+
+    /**
+     * 保存笔记
+     *
+     * @param blog
+     * @return
+     */
+    @Override
+    public Result saveBlog(Blog blog) {
+        // 获取登录用户
+        UserDTO user = UserHolder.getUser();
+        blog.setUserId(user.getId());
+        // 保存探店博文
+        boolean save = save(blog);
+        if (!save) {
+            return Result.fail("笔记保存失败！");
+        }
+        //3.查询笔记作者所有粉丝 select * from tb_follow where follow_user_id = 1010;
+        List<Follow> followUserIds = followService.query().eq("follow_user_id", user.getId()).list();
+        //4.推送笔记id给所有粉丝
+        for (Follow followUserId : followUserIds) {
+            String key = KEY_PRE_FIX + FEED_KEY + followUserId.getUserId();
+            stringRedisTemplate.opsForZSet().add(key,blog.getId().toString(),System.currentTimeMillis());
+        }
+        // 返回id
+        return Result.ok(blog.getId());
+
     }
 }
