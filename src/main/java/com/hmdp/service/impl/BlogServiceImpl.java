@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.conditions.query.QueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
+import com.hmdp.dto.ScrollResult;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Blog;
 import com.hmdp.entity.Follow;
@@ -16,10 +17,13 @@ import com.hmdp.service.IFollowService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.SystemConstants;
 import com.hmdp.utils.UserHolder;
+import jodd.util.StringUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -179,10 +183,60 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         //4.推送笔记id给所有粉丝
         for (Follow followUserId : followUserIds) {
             String key = KEY_PRE_FIX + FEED_KEY + followUserId.getUserId();
-            stringRedisTemplate.opsForZSet().add(key,blog.getId().toString(),System.currentTimeMillis());
+            stringRedisTemplate.opsForZSet().add(key, blog.getId().toString(), System.currentTimeMillis());
         }
         // 返回id
         return Result.ok(blog.getId());
 
+    }
+
+    /**
+     * 好友关注-实现滚动分页查询收件箱
+     *
+     * @param max
+     * @param offset
+     * @return
+     */
+    @Override
+    public Result queryBlogOfFollow(Long max, Integer offset) {
+//        1.获取当前用户
+        Long id = UserHolder.getUser().getId();
+        String key = KEY_PRE_FIX + FEED_KEY + id;
+//        2.查询收件箱
+        Set<ZSetOperations.TypedTuple<String>> typedTuples = stringRedisTemplate.opsForZSet().reverseRangeByScoreWithScores(key, 0, max, offset, 2);
+        if (typedTuples == null || typedTuples.isEmpty()) {
+            return Result.ok();
+        }
+//        3.解析数据 blogId，minTime（最小时间戳），offset数量
+        List<Long> ids = new ArrayList<>();
+        long minTime = 0;//3
+        int os = 1; //2
+        for (ZSetOperations.TypedTuple<String> typedTuple : typedTuples) { //5 4 4 3 3 2
+            //获取id
+            ids.add(Long.valueOf(typedTuple.getValue()));
+            //获取分数（时间戳)
+            long time = typedTuple.getScore().longValue();
+            if (time == minTime) {
+                os++;
+            } else {
+                minTime = time;
+                os = 1;
+            }
+        }
+//        4.根据id查询blog
+        String idStr = StrUtil.join(",", ids);
+        List<Blog> blogs = query().in("id", ids).last("ORDER BY FIELD(id," + idStr + ")").list();
+        for (Blog blog : blogs) {
+            // 2.查询blog有关的用户
+            queryBlogUser(blog);
+            // 3.查询blog是否被点赞
+            isBlogLiked(blog);
+        }
+//        5.封装返回
+        ScrollResult scrollResult = new ScrollResult();
+        scrollResult.setList(blogs);
+        scrollResult.setMinTime(minTime);
+        scrollResult.setOffset(os);
+        return Result.ok(scrollResult);
     }
 }

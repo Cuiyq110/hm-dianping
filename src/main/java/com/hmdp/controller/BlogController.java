@@ -33,6 +33,19 @@ public class BlogController {
     private IUserService userService;
 
 
+    /**
+     * 好友关注-实现滚动分页查询收件箱
+     * @param max
+     * @param offset
+     * @return
+     */
+
+    @GetMapping("/of/follow")
+    public Result queryBlogOfFollow(@RequestParam("lastId") Long max,@RequestParam(value = "offset", defaultValue = "0") Integer offset) {
+        return blogService.queryBlogOfFollow(max,offset);
+    }
+
+
     // BlogController
     @GetMapping("/of/user")
     public Result queryBlogByUserId(
