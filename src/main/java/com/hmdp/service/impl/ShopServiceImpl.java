@@ -4,6 +4,7 @@ import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
@@ -12,13 +13,23 @@ import com.hmdp.service.IShopService;
 import com.hmdp.utils.CacheClient;
 import com.hmdp.utils.CacheClient1;
 import com.hmdp.utils.RedisData;
+import com.hmdp.utils.SystemConstants;
+import jodd.util.StringUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.geo.Distance;
+import org.springframework.data.geo.GeoResult;
+import org.springframework.data.geo.GeoResults;
+import org.springframework.data.geo.Point;
+import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.domain.geo.GeoReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -44,6 +55,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     @Resource
     private CacheClient1 cacheClient1;
+
 
     /**
      * 添加商户缓存 互斥锁解决缓存击穿问题
@@ -283,5 +295,70 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 //        2.删除缓存
         str.delete(CACHE_SHOP_KEY + id);
         return Result.ok();
+    }
+
+    /**
+     * 根据商户查询附近坐标功能
+     * @param typeId
+     * @param current
+     * @param x
+     * @param y
+     * @return
+     */
+    @Override
+    public Result queryShopByType(Integer typeId, Integer current, Double x, Double y) {
+        //1.判断是否根据坐标查询
+        if (x == null || y == null) {
+
+            // 根据类型分页查询
+            Page<Shop> page = query()
+                    .eq("type_id", typeId)
+                    .page(new Page<>(current, SystemConstants.DEFAULT_PAGE_SIZE));
+            // 返回数据
+            return Result.ok(page.getRecords());
+        }
+
+        //2.计算分页参数
+        long from = (current - 1) * SystemConstants.DEFAULT_PAGE_SIZE;
+        long end = current * SystemConstants.DEFAULT_PAGE_SIZE;
+
+        //3.查询数据根据距离排序，分页，结果：shopId、distance
+        String key = KEY_PRE_FIX + SHOP_GEO_KEY + typeId;
+            //GEOSEARCH key BYLONLAT x y BYRADIUS 10 WITHDISTANCE
+        GeoResults<RedisGeoCommands.GeoLocation<String>> search = str.opsForGeo().search(key,
+                GeoReference.fromCoordinate(x,y),
+                new Distance(5000), RedisGeoCommands.GeoSearchCommandArgs.newGeoSearchArgs().includeDistance().limit(end));
+        if (search == null) {
+            return Result.ok(Collections.emptyList());
+        }
+        List<GeoResult<RedisGeoCommands.GeoLocation<String>>> list = search.getContent();
+            //3.1保存为shopId，和距离数组
+        List<String> ids = new ArrayList<>(list.size());
+        Map<String,Distance> distanceMap = new HashMap<>(list.size());
+
+        if (list.size() <= from) {
+        //没有下一页了结束
+            return Result.ok(Collections.emptyList());
+        }
+        //4.解析id
+        list.stream().skip(from).forEach(result ->
+        {
+            // 4.2.获取店铺id
+            String shopIdStr = result.getContent().getName();
+            ids.add(shopIdStr);
+            // 4.3.获取距离
+            Distance distance = result.getDistance();
+            distanceMap.put(shopIdStr,distance);
+        });
+        //5.根据id查询店铺
+        String idStr = StrUtil.join(",", ids);
+        List<Shop> shops = query().in("id", ids).last("ORDER BY FIELD(id," + idStr + ")").list();
+            //5.1店铺跟距离结合起来
+        for (Shop shop : shops) {
+            Double distance = distanceMap.get(shop.getId().toString()).getValue();
+            shop.setDistance(distance);
+        }
+        //6.返回
+        return Result.ok(shops);
     }
 }
