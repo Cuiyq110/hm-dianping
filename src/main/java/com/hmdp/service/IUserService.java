@@ -22,4 +22,10 @@ public interface IUserService extends IService<User> {
     Result login(LoginFormDTO loginForm, HttpSession session);
 
     Result sendCode(String phone, HttpSession session);
+
+    /**
+     * 实现用户签到功能
+     * @return
+     */
+    Result sign();
 }

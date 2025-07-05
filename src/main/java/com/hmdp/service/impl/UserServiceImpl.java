@@ -11,6 +11,7 @@ import com.hmdp.entity.User;
 import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.RegexUtils;
+import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,8 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpSession;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -42,6 +45,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     private StringRedisTemplate stringRedisTemplate;
 
 
+    /**
+     * 实现用户签到功能
+     * @return
+     */
+    @Override
+    public Result sign() {
+        //1. 获得当前用户
+        Long id = UserHolder.getUser().getId();
+
+        //2. 获取今天日期
+        String format = LocalDateTime.now().format(DateTimeFormatter.ofPattern(":yyyyMM"));
+        LocalDateTime now = LocalDateTime.now();
+        //3.  进行拼接
+        String key = KEY_PRE_FIX + USER_SIGN_KEY + id + format;
+        //4. 保存到redis中
+            //获取今天是本月的第几天 1-31
+        int dayOfMonth = now.getDayOfMonth();
+        Boolean b = stringRedisTemplate.opsForValue().setBit(key, dayOfMonth - 1, true);
+        //5. 返回
+        return Result.ok();
+    }
+
     @Override
     public Result sendCode(String phone, HttpSession session) {
         //1. 校验手机号
@@ -60,6 +85,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         //返回ok
         return Result.ok();
     }
+
 
     @Override
     public Result login(LoginFormDTO loginForm, HttpSession session) {
