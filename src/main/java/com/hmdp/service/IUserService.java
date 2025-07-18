@@ -28,4 +28,10 @@ public interface IUserService extends IService<User> {
      * @return
      */
     Result sign();
+
+    /**
+     *  统计连续签到用户
+     * @return
+     */
+    Result signCount();
 }

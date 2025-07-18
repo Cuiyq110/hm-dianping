@@ -13,6 +13,7 @@ import com.hmdp.service.IUserService;
 import com.hmdp.utils.RegexUtils;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.connection.BitFieldSubCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +23,7 @@ import javax.servlet.http.HttpSession;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -59,12 +61,59 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         LocalDateTime now = LocalDateTime.now();
         //3.  进行拼接
         String key = KEY_PRE_FIX + USER_SIGN_KEY + id + format;
-        //4. 保存到redis中
-            //获取今天是本月的第几天 1-31
+        //获取今天是本月的第几天 1-31
         int dayOfMonth = now.getDayOfMonth();
+        //4. 保存到redis中
+
         Boolean b = stringRedisTemplate.opsForValue().setBit(key, dayOfMonth - 1, true);
         //5. 返回
         return Result.ok();
+    }
+
+    /**
+     * 统计连续签到用户
+     * @return
+     */
+    @Override
+    public Result signCount() {
+        //1. 获得当前用户
+        Long id = UserHolder.getUser().getId();
+
+        //2. 获取今天日期
+        String format = LocalDateTime.now().format(DateTimeFormatter.ofPattern(":yyyyMM"));
+        LocalDateTime now = LocalDateTime.now();
+        //3.  进行拼接
+        String key = KEY_PRE_FIX + USER_SIGN_KEY + id + format;
+        //4.获取今天是本月的第几天 1-31
+        int dayOfMonth = now.getDayOfMonth();
+        //5.获得本月所有签到记录  BITFIELD sign:5:202203 GET u14 0
+        List<Long> result = stringRedisTemplate.opsForValue().bitField(
+                key, BitFieldSubCommands.create().get(BitFieldSubCommands.BitFieldType.unsigned(dayOfMonth)).valueAt(0)
+        );
+        if (result == null || result.isEmpty()) {
+            return Result.ok(0);
+        }
+        //6.循环
+        Long num = result.get(0);
+        if (num == null || num == 0) {
+            return Result.ok(0);
+        }
+
+        int count = 0;
+        while (true) {
+            //6.1 与一做运算，得到最后一个bit位
+            if ((num & 1) == 0) {
+                //6.2如果为0则未签到
+                break;
+            } else {
+                //6.3如果为1则计数+1
+                count ++;
+            }
+            //6.4把数字右移一位
+            num >>>= 1;
+        }
+        //7返回
+        return Result.ok(count);
     }
 
     @Override
